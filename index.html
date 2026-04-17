@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Island City GTA - Arrow Navigation</title>
+    <style>
+        * { margin: 0; padding: 0; touch-action: none; user-select: none; }
+        body { overflow: hidden; background-color: #87CEEB; }
+        #ui { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: #00ff00; font-family: sans-serif; font-size: 15px; padding: 12px; border-radius: 8px; z-index: 10; width: 85%; border: 2px solid white; font-weight: bold;}
+        #joystick-zone { position: absolute; bottom: 30px; left: 30px; width: 120px; height: 120px; z-index: 10; }
+        #action-btn { position: absolute; bottom: 50px; right: 50px; width: 75px; height: 75px; border-radius: 50%; background: #ff4500; color: white; font-weight: bold; font-size: 16px; border: 3px solid white; z-index: 10; box-shadow: 0px 4px 10px black; }
+        #action-btn:active { background: #8b0000; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+</head>
+<body>
+    <div id="ui">Mission 1: Follow the Yellow Arrow to the Blue Car!</div>
+    <div id="joystick-zone"></div>
+    <button id="action-btn">ENTER</button>
+    <script>
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 40, 200);
+
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1.2);
+        light.position.set(50, 100, 50);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x707070));
+
+        // 1. Endless Ocean (समुद्र)
+        const ocean = new THREE.Mesh(new THREE.PlaneGeometry(1500, 1500), new THREE.MeshLambertMaterial({ color: 0x1E90FF }));
+        ocean.rotation.x = -Math.PI / 2;
+        ocean.position.y = -1; // जमीन से थोड़ा नीचे
+        scene.add(ocean);
+
+        // 2. Main Island (शहर की ज़मीन)
+        const island = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshLambertMaterial({ color: 0x2e5c2b }));
+        island.rotation.x = -Math.PI / 2;
+        scene.add(island);
+
+        // 3. Secret Island (जहाँ हेलीकॉप्टर होगा)
+        const secretIsland = new THREE.Mesh(new THREE.CylinderGeometry(30, 30, 2, 32), new THREE.MeshLambertMaterial({ color: 0xc2b280 })); // Sand color
+        secretIsland.position.set(200, -0.5, 200);
+        scene.add(secretIsland);
+
+        // Buildings (सिर्फ आइलैंड के अंदर)
+        for(let i = 0; i < 60; i++) {
+            let px = (Math.random() - 0.5) * 260; let pz = (Math.random() - 0.5) * 260;
+            let h = Math.random() * 20 + 10;
+            let bldg = new THREE.Mesh(new THREE.BoxGeometry(10, h, 10), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+            bldg.position.set(px, h/2, pz);
+            scene.add(bldg);
+        }
+        // Clean Chibi Generator
+        function createChibi(shirtColor) {
+            const char = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 1.2), new THREE.MeshLambertMaterial({ color: shirtColor }));
+            body.position.y = 0.7;
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0xffdcb1 })); // Clean skin
+            head.position.y = 1.9;
+            char.add(body); char.add(head);
+            return char;
+        }
+
+        const player = createChibi(0xffffff); // Player White shirt me
+        scene.add(player);
+
+        // Vehicles
+        const driveableCar = new THREE.Mesh(new THREE.BoxGeometry(3, 1.5, 6), new THREE.MeshLambertMaterial({ color: 0x1f51ff }));
+        driveableCar.position.set(20, 0.75, 20); scene.add(driveableCar);
+
+        const boat = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 8), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+        boat.position.set(150, 0, 150); // समुद्र के किनारे
+        scene.add(boat);
+
+        const helicopter = new THREE.Group();
+        const heliBody = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 6), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
+        heliBody.position.y = 1.5;
+        const rotor = new THREE.Mesh(new THREE.BoxGeometry(8, 0.1, 0.5), new THREE.MeshLambertMaterial({ color: 0x111111 }));
+        rotor.position.set(0, 3.1, 0);
+        helicopter.add(heliBody); helicopter.add(rotor);
+        helicopter.position.set(200, 0.5, 200); // Secret Island par
+        scene.add(helicopter);
+
+        // The Red Tower & Yellow Box
+        const redTower = new THREE.Mesh(new THREE.BoxGeometry(20, 60, 20), new THREE.MeshLambertMaterial({ color: 0x8b0000 }));
+        redTower.position.set(-80, 30, -80); scene.add(redTower); // Main Island par
+        
+        const secretBox = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), new THREE.MeshLambertMaterial({ color: 0xffff00 }));
+        secretBox.position.set(-80, 62, -80); scene.add(secretBox); // Tower ke upar
+
+        // NAVIGATION ARROW (यह आपको रास्ता दिखाएगा)
+        const arrowGeo = new THREE.ConeGeometry(1.5, 4, 8);
+        arrowGeo.rotateX(Math.PI / 2); // तीर को आगे की तरफ मोड़ना
+        const pointerArrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xffff00 }));
+        scene.add(pointerArrow);
+        let moveX = 0, moveZ = 0, angle = 0;
+        let activeVehicle = null; 
+        let missionStage = 1;
+        let currentTarget = driveableCar; // Arrow shuru mein car ki taraf point karega
+        
+        const speeds = { walk: 0.15, car: 0.45, boat: 0.35, heli: 0.6 }; 
+
+        const joystick = nipplejs.create({ zone: document.getElementById('joystick-zone'), mode: 'static', position: { left: '70px', bottom: '70px' }, color: 'white' });
+        
+        joystick.on('move', (evt, data) => {
+            angle = data.angle.radian;
+            let spd = activeVehicle ? speeds[activeVehicle] : speeds.walk;
+            moveX = Math.cos(angle) * spd; moveZ = -Math.sin(angle) * spd;
+        });
+        joystick.on('end', () => { moveX = 0; moveZ = 0; });
+
+        document.getElementById('action-btn').addEventListener('touchstart', () => {
+            if(!activeVehicle) {
+                if(player.position.distanceTo(driveableCar.position) < 6) {
+                    activeVehicle = 'car'; player.visible = false;
+                } else if(player.position.distanceTo(boat.position) < 8) {
+                    activeVehicle = 'boat'; player.visible = false;
+                } else if(player.position.distanceTo(helicopter.position) < 8) {
+                    activeVehicle = 'heli'; player.visible = false;
+                    helicopter.position.y = 65; // Heli udkar seedha Red Tower se upar jayega
+                }
+            } else {
+                // Exit Vehicle Logic
+                let vPos = activeVehicle === 'car' ? driveableCar.position : (activeVehicle === 'boat' ? boat.position : helicopter.position);
+                              // अगर हेलीकॉप्टर से टावर के ऊपर उतर रहे हैं तो छत पर लैंड करें
+                let distToTower = Math.hypot(vPos.x - redTower.position.x, vPos.z - redTower.position.z);
+                if(activeVehicle === 'heli' && distToTower < 15) {
+                    player.position.set(vPos.x, 60, vPos.z); // टावर की छत
+                } else {
+                    player.position.set(vPos.x + 4, 0, vPos.z); // जमीन पर
+                    if(activeVehicle === 'heli') helicopter.position.y = 0.5;
+                }
+                
+                player.visible = true; activeVehicle = null;
+            }
+        });
+        function updateMissions() {
+            let ui = document.getElementById('ui');
+            let mainObj = activeVehicle === 'car' ? driveableCar : (activeVehicle === 'boat' ? boat : (activeVehicle === 'heli' ? helicopter : player));
+
+            if(missionStage === 1 && activeVehicle === 'car') {
+                missionStage = 2; currentTarget = boat;
+                ui.innerText = "Mission 2: Follow Arrow to the Docks and get in the BOAT!";
+            } 
+            else if(missionStage === 2 && activeVehicle === 'boat') {
+                missionStage = 3; currentTarget = helicopter;
+                ui.innerText = "Mission 3: Drive boat to Secret Island and take HELICOPTER!";
+            }
+            else if(missionStage === 3 && activeVehicle === 'heli') {
+                missionStage = 4; currentTarget = secretBox;
+                ui.innerText = "Mission 4: Fly to RED TOWER, hover over it & Exit!";
+            }
+            else if(missionStage === 4 && !activeVehicle && player.position.y > 50) {
+                // Player chhat par hai
+                if(player.position.distanceTo(secretBox.position) < 5) {
+                    ui.innerText = "YOU FOUND THE BOX! GAME COMPLETED! 🏆"; 
+                    secretBox.visible = false; pointerArrow.visible = false;
+                    missionStage = 5;
+                }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            let mainObj = player;
+
+            if(activeVehicle === 'car') { mainObj = driveableCar; }
+            else if(activeVehicle === 'boat') { mainObj = boat; }
+            else if(activeVehicle === 'heli') { mainObj = helicopter; rotor.rotation.y += 0.5; }
+
+            // Movement & Limits
+            mainObj.position.x += moveX; mainObj.position.z += moveZ;
+            if(moveX !== 0 || moveZ !== 0) mainObj.rotation.y = -angle + Math.PI/2;
+            
+            // Box Animation
+            secretBox.rotation.y += 0.05; secretBox.rotation.x += 0.02;
+
+            // Arrow Logic (तीर को कैरेक्टर के ऊपर रखना और टारगेट की तरफ घुमाना)
+            if(pointerArrow.visible) {
+                pointerArrow.position.set(mainObj.position.x, mainObj.position.y + 6, mainObj.position.z);
+                pointerArrow.lookAt(currentTarget.position);
+            }
+
+            updateMissions();
+
+            // Camera Setup
+            camera.position.set(mainObj.position.x, mainObj.position.y + 10, mainObj.position.z + 20);
+            camera.lookAt(mainObj.position);
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
